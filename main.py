@@ -3,7 +3,6 @@ from discord import app_commands, ui
 import requests
 import json
 
-
 guild = discord.Object(id=716770439862681620)
 
 
@@ -20,24 +19,51 @@ class aclient(discord.Client):
         print(f"Logged in as {self.user}")
 
 
-class Questionnaire(ui.Modal, title="Questionnaire"):
-    name = ui.TextInput(label='Name')
-    answer = ui.TextInput(label='Answer', style=discord.TextStyle.paragraph)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f'Thanks for your response,'
-                                                f' {self.name}!',
-                                                ephemeral=True)
+# class Questionnaire(ui.Modal, title="Questionnaire"):
+#     name = ui.TextInput(label='Name')
+#     answer = ui.TextInput(label='Answer', style=discord.TextStyle.paragraph)
+#
+#     async def on_submit(self, interaction: discord.Interaction):
+#         await interaction.response.send_message(f'Thanks for your response,'
+#                                                 f' {self.name}!',
+#                                                 ephemeral=True)
 
 
 class Matches(ui.Select):
-    def __init__(self):
-        tournaments = []
+    """Takes the tournament name as an argument and finds all the matches from that tournament. Sends that list to the
+    user in a dropdown menu. """
+    def __init__(self, name):
+        self.name = name
+        self.get = requests.get('https://vlrggapi.vercel.app/match/results').text
+        self.data = json.loads(self.get)['data']['segments']
 
-        super().__init__(placeholder='Select Match')
+        self.matches = []
+        for match in self.data:
+            if match['tournament_name'] == self.name:
+                self.matches.append(match)
+
+        options = []
+        for option in self.matches:
+            options.append(discord.SelectOption(label=f"{option['team1']} vs {option['team2']}",
+                                                description=option['round_info']))
+
+        super().__init__(placeholder='Select Match', options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        embed = discord.Embed(color=discord.Color.from_rgb(138, 43, 226), timestamp=interaction.created_at,
+                              title=self.values[0])
+        for match in self.matches:
+            print(match['team1'])
+            print(self.values[0].split('vs')[0].strip())
+            if match['team1'] == self.values[0].split('vs')[0].strip():
+                index = self.data.index(match)
+
+        embed.set_author(icon_url=self.data[index]['tournament_icon'], name=self.data[index]['tournament_name'])
+        await interaction.response.send_message(embed=embed)
 
 
 class Tournaments(ui.Select):
+    """Gets a list of recent tournaments and sends all the options in a dropdown menu. """
     def __init__(self):
         self.get = requests.get('https://vlrggapi.vercel.app/match/results').text
         self.data = json.loads(self.get)
@@ -62,7 +88,7 @@ class Tournaments(ui.Select):
         super().__init__(placeholder="Select Tournament", options=tournaments)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(view=MatchView())
+        await interaction.response.send_message(view=MatchView(name=self.values[0]))
 
 
 class TournamentView(ui.View):
@@ -71,10 +97,10 @@ class TournamentView(ui.View):
         self.add_item(Tournaments())
 
 
-class MatchView(ui.view):
-    def __init__(self, *, timeout=180):
+class MatchView(ui.View):
+    def __init__(self, name, *, timeout=180):
         super().__init__(timeout=timeout)
-        self.add_item(Matches())
+        self.add_item(Matches(name=name))
 
 
 client = aclient()
@@ -93,9 +119,9 @@ async def ping(interaction: discord.Interaction):
         f'{round(client.latency * 1000)}ms')
 
 
-@tree.command(guild=guild)
-async def modal(interaction: discord.Interaction):
-    await interaction.response.send_modal(Questionnaire())
+# @tree.command(guild=guild)
+# async def modal(interaction: discord.Interaction):
+#     await interaction.response.send_modal(Questionnaire())
 
 
 @tree.command(guild=guild)
@@ -103,5 +129,6 @@ async def menu(interaction: discord.Interaction):
     await interaction.response.send_message(view=TournamentView())
 
 
-client.run(
-    'MTAxNTIzNzAxMTgzNTE5MTM4Ng.GlheMq.3JPuH0tsFuNnwVNy37TPEIBI_Jyg48BscWz2Sg')
+client.run('MTAxNTIzNzAxMTgzNTE5MTM4Ng.GMydV_.YlOnOjFTMoa62qg6t3yfmA5n7JjgaY9vduLmyY')
+
+# TODO DO NOT PUSH WITH THE TOKEN YOU IDIOT.
