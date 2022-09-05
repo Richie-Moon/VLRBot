@@ -1,9 +1,11 @@
 import discord
 from discord import app_commands, ui
+import requests
+import json
 
 
-# https://vlrggapi.vercel.app/#/default/VLR_scores_match_results_get
 guild = discord.Object(id=716770439862681620)
+
 
 class aclient(discord.Client):
     def __init__(self):
@@ -28,21 +30,51 @@ class Questionnaire(ui.Modal, title="Questionnaire"):
                                                 ephemeral=True)
 
 
-class Dropdown(ui.Select):
+class Matches(ui.Select):
     def __init__(self):
-        options = [discord.SelectOption(label='Option 1'),
-                   discord.SelectOption(label="Option 2"),
-                   discord.SelectOption(label="Option 3")]
-        super().__init__(placeholder="Select", options=options)
+        tournaments = []
+
+        super().__init__(placeholder='Select Match')
+
+
+class Tournaments(ui.Select):
+    def __init__(self):
+        self.get = requests.get('https://vlrggapi.vercel.app/match/results').text
+        self.data = json.loads(self.get)
+
+        count = 0
+        tournament_names = []
+        tournaments = []
+        for match in self.data['data']['segments']:
+            if count != 25:
+                option = match['tournament_name']
+                if option in tournament_names:
+                    pass
+                else:
+                    tournament_names.append(option)
+                    count += 1
+            else:
+                break
+
+        for tournament in tournament_names:
+            tournaments.append(discord.SelectOption(label=tournament))
+
+        super().__init__(placeholder="Select Tournament", options=tournaments)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(content=f"Your choice is {self.values[0]}!")
+        await interaction.response.send_message(view=MatchView())
 
 
-class SelectView(discord.ui.View):
+class TournamentView(ui.View):
     def __init__(self, *, timeout=180):
         super().__init__(timeout=timeout)
-        self.add_item(Dropdown())
+        self.add_item(Tournaments())
+
+
+class MatchView(ui.view):
+    def __init__(self, *, timeout=180):
+        super().__init__(timeout=timeout)
+        self.add_item(Matches())
 
 
 client = aclient()
@@ -68,8 +100,8 @@ async def modal(interaction: discord.Interaction):
 
 @tree.command(guild=guild)
 async def menu(interaction: discord.Interaction):
-    await interaction.response.send_message(view=SelectView())
+    await interaction.response.send_message(view=TournamentView())
 
 
 client.run(
-    'MTAxNTIzNzAxMTgzNTE5MTM4Ng.Gkx736.pp7llE5PILlVGIYKUYt9hllNUUCPO38jtGS4YU')
+    'MTAxNTIzNzAxMTgzNTE5MTM4Ng.GlheMq.3JPuH0tsFuNnwVNy37TPEIBI_Jyg48BscWz2Sg')
