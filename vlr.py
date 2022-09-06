@@ -1,17 +1,9 @@
-import requests
-import json
+import datetime
 
-data = requests.get('https://vlrggapi.vercel.app/match/results').text
-print(data)
+dt_now = datetime.datetime.now()
+string = ['3d 11h from now', '14h 19m ago']
 
-json_data = json.loads(data)
-
-try:
-    if json_data['Error'] == '500':
-        print("Internal Server Error at VLR.gg/API Endpoint.")
-except KeyError:
-    json_data = json.loads(data)['data']
-    print(json_data['segments'])
-
-
-
+a = datetime.datetime(100, 1, 1, 11, 34, 59)
+b = a + datetime.timedelta(0, 3)  # days, seconds, then other fields.
+print(a)
+print(b)
