@@ -2,8 +2,13 @@ import discord
 from discord import app_commands, ui
 import requests
 import json
+from os import environ
+from dotenv import load_dotenv
 
-guild = discord.Object(id=716770439862681620)
+load_dotenv()
+token = environ['TOKEN']
+
+guilds = [discord.Object(id=716770439862681620), discord.Object(id=792309472784547850)]
 
 
 class aclient(discord.Client):
@@ -14,7 +19,7 @@ class aclient(discord.Client):
     async def on_ready(self):
         await self.wait_until_ready()
         if not self.synced:
-            await tree.sync(guild=guild)
+            await tree.sync(guild=guilds[0])
             self.synced = True
         print(f"Logged in as {self.user}")
 
@@ -30,8 +35,9 @@ class aclient(discord.Client):
 
 
 class Matches(ui.Select):
-    """Takes the tournament name as an argument and finds all the matches from that tournament. Sends that list to the
-    user in a dropdown menu. """
+    """Takes the tournament name as an argument and finds all the matches from that tournament.
+    Sends that list to the user in a dropdown menu. """
+
     def __init__(self, name):
         self.name = name
         self.get = requests.get('https://vlrggapi.vercel.app/match/results').text
@@ -45,25 +51,45 @@ class Matches(ui.Select):
         options = []
         for option in self.matches:
             options.append(discord.SelectOption(label=f"{option['team1']} vs {option['team2']}",
-                                                description=option['round_info']))
+                                                description=option['round_info'],
+                                                value=str(self.matches.index(option))))
 
         super().__init__(placeholder='Select Match', options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(color=discord.Color.from_rgb(138, 43, 226), timestamp=interaction.created_at,
-                              title=self.values[0])
-        for match in self.matches:
-            print(match['team1'])
-            print(self.values[0].split('vs')[0].strip())
-            if match['team1'] == self.values[0].split('vs')[0].strip():
-                index = self.data.index(match)
+        match = self.matches[int(self.values[0])]
+        embed = discord.Embed(color=discord.Color.from_rgb(138, 43, 226),
+                              timestamp=interaction.created_at,
+                              title=f"{match['team1']} vs {match['team2']}")
 
-        embed.set_author(icon_url=self.data[index]['tournament_icon'], name=self.data[index]['tournament_name'])
+        if int(match['score1']) > int(match['score2']):
+            embed.add_field(name=f"Result:",
+                            value=f"**:{match['flag1']}: {match['team1']} {match['score1']}**:"
+                                  f"{match['score2']} {match['team2']} :{match['flag2']}:",
+                            inline=True)
+            embed.add_field(name="Info:", value=f"**Winner:** {match['team1']}"
+                                                f"\n**Round: ** {match['round_info']}"
+                                                f"\n**Time:** {match['time_completed']}"
+                                                f"\n**Site:** https://vlr.gg{match['match_page']}",
+                            inline=False)
+        else:
+            embed.add_field(name=f"Result:",
+                            value=f":{match['flag1']}: {match['team1']} {match['score1']}:"
+                                  f"**{match['score2']} {match['team2']} :{match['flag2']}:**",
+                            inline=True)
+            embed.add_field(name='Info:', value=f"**Winner:** {match['team2']}"
+                                                f"\n**Round: ** {match['round_info']}"
+                                                f"\n**Time:** {match['time_completed']}"
+                                                f"\n**Site:** https://vlr.gg{match['match_page']}"
+                                                f"\n", inline=False)
+
+        embed.set_author(icon_url=match['tournament_icon'], name=match['tournament_name'])
         await interaction.response.send_message(embed=embed)
 
 
 class Tournaments(ui.Select):
     """Gets a list of recent tournaments and sends all the options in a dropdown menu. """
+
     def __init__(self):
         self.get = requests.get('https://vlrggapi.vercel.app/match/results').text
         self.data = json.loads(self.get)
@@ -107,28 +133,35 @@ client = aclient()
 tree = app_commands.CommandTree(client)
 
 
-@tree.command(guild=guild)
+@tree.command(guilds=guilds)
 async def test(interaction: discord.Interaction, number: int, string: str):
     await interaction.response.send_message(f'{number=} {string=}',
                                             ephemeral=False)
 
 
-@tree.command(guild=guild)
+@tree.command(guilds=guilds)
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(
         f'{round(client.latency * 1000)}ms')
 
 
-# @tree.command(guild=guild)
+# @tree.command(guilds=guilds)
 # async def modal(interaction: discord.Interaction):
 #     await interaction.response.send_modal(Questionnaire())
 
 
-@tree.command(guild=guild)
-async def menu(interaction: discord.Interaction):
+@tree.command(guilds=guilds)
+async def results(interaction: discord.Interaction):
     await interaction.response.send_message(view=TournamentView())
 
 
-client.run('MTAxNTIzNzAxMTgzNTE5MTM4Ng.GMydV_.YlOnOjFTMoa62qg6t3yfmA5n7JjgaY9vduLmyY')
+@results.error
+async def results_error(interaction: discord.Interaction, error):
+    if isinstance(error, app_commands.CommandNotFound):
+        await interaction.response.send_message("Data Fetch timed out. ")
 
-# TODO DO NOT PUSH WITH THE TOKEN YOU IDIOT.
+
+class 
+
+
+client.run(token)
