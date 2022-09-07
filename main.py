@@ -9,6 +9,12 @@ import datetime
 
 def convert_to_unix(time_data: str):
     dt_now = datetime.datetime.now()
+
+    if 'd' in time_data:
+        contains_d = True
+    else:
+        contains_d = False
+
     time_data = time_data.split()
 
     if len(time_data) == 3:
@@ -41,7 +47,7 @@ def convert_to_unix(time_data: str):
             elif item[1] == 's':
                 dt_now += datetime.timedelta(seconds=float(item[0]))
 
-    if 'd' in time_data:
+    if contains_d is True:
         return int(datetime.datetime.strptime(str(dt_now.date()), '%Y-%m-%d').timestamp())
     else:
         return int(datetime.datetime.timestamp(dt_now))
@@ -122,7 +128,7 @@ class Matches(ui.Select):
                                 inline=True)
                 embed.add_field(name="Info:", value=f"**Winner:** {match['team1']}"
                                                     f"\n**Round: ** {match['round_info']}"
-                                                    f"\n**Time:** <t:{unix}> (<t:{unix}:R>)"
+                                                    f"\n**Time:** <t:{unix}:D> (<t:{unix}:R>)"
                                                     f"\n**Site:** https://vlr.gg{match['match_page']}",
                                 inline=False)
             else:
@@ -132,7 +138,7 @@ class Matches(ui.Select):
                                 inline=True)
                 embed.add_field(name='Info:', value=f"**Winner:** {match['team2']}"
                                                     f"\n**Round: ** {match['round_info']}"
-                                                    f"\n**Time:** <t:{unix}> (<t:{unix}:R>)"
+                                                    f"\n**Time:** <t:{unix}:D> (<t:{unix}:R>)"
                                                     f"\n**Site:** https://vlr.gg{match['match_page']}"
                                                     f"\n", inline=False)
 
@@ -228,12 +234,14 @@ async def results_error(interaction: discord.Interaction, error):
 
 @tree.command(guilds=guilds)
 async def upcoming(interaction: discord.Interaction):
+    print('That')
     await interaction.response.send_message(view=TournamentView(url_type='upcoming'))
 
 
 @upcoming.error
 async def upcoming_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.CommandNotFound):
+        print('This')
         await interaction.response.send_message("Data Fetch timed out")
 
 
