@@ -147,7 +147,6 @@ class Matches(ui.Select):
 
         else:
             unix = convert_to_unix(match['time_until_match'])
-            print(unix)
             embed = discord.Embed(colour=discord.Color.from_rgb(255, 87, 51),
                                   timestamp=interaction.created_at,
                                   title=f"{match['team1']} vs {match['team2']}")
@@ -229,12 +228,12 @@ async def results(interaction: discord.Interaction):
 @results.error
 async def results_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.CommandNotFound):
+        print('that')
         await interaction.response.send_message("Data Fetch timed out. ")
 
 
 @tree.command(guilds=guilds)
 async def upcoming(interaction: discord.Interaction):
-    print('That')
     await interaction.response.send_message(view=TournamentView(url_type='upcoming'))
 
 
