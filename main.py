@@ -4,6 +4,48 @@ import requests
 import json
 from os import environ
 from dotenv import load_dotenv
+import datetime
+
+
+def convert_to_unix(time_data: str):
+    dt_now = datetime.datetime.now()
+    time_data = time_data.split()
+
+    if len(time_data) == 3:
+        time_data.pop(-1)
+        for item in time_data:
+            if item[1] == 'w':
+                dt_now -= datetime.timedelta(weeks=float(item[0]))
+            elif item[1] == 'd':
+                dt_now -= datetime.timedelta(days=float(item[0]))
+            elif item[1] == 'h':
+                dt_now -= datetime.timedelta(hours=float(item[0]))
+            elif item[1] == 'm':
+                dt_now -= datetime.timedelta(minutes=float(item[0]))
+            elif item[1] == 's':
+                dt_now -= datetime.timedelta(seconds=float(item[0]))
+
+    elif len(time_data) == 4:
+        for i in range(2):
+            time_data.pop(-1)
+
+        for item in time_data:
+            if item[1] == 'w':
+                dt_now += datetime.timedelta(weeks=float(item[0]))
+            elif item[1] == 'd':
+                dt_now += datetime.timedelta(days=float(item[0]))
+            elif item[1] == 'h':
+                dt_now += datetime.timedelta(hours=float(item[0]))
+            elif item[1] == 'm':
+                dt_now += datetime.timedelta(minutes=float(item[0])+1)
+            elif item[1] == 's':
+                dt_now += datetime.timedelta(seconds=float(item[0]))
+
+    if 'd' in time_data:
+        return int(datetime.datetime.strptime(str(dt_now.date()), '%Y-%m-%d').timestamp())
+    else:
+        return int(datetime.datetime.timestamp(dt_now))
+
 
 load_dotenv()
 token = environ['TOKEN']
@@ -26,6 +68,7 @@ class aclient(discord.Client):
 
 client = aclient()
 tree = app_commands.CommandTree(client)
+
 
 # class Questionnaire(ui.Modal, title="Questionnaire"):
 #     name = ui.TextInput(label='Name')
@@ -67,6 +110,7 @@ class Matches(ui.Select):
         match = self.matches[int(self.values[0])]
 
         if self.url_type == 'results':
+            unix = convert_to_unix(match['time_completed'])
             embed = discord.Embed(color=discord.Color.from_rgb(138, 43, 226),
                                   timestamp=interaction.created_at,
                                   title=f"{match['team1']} vs {match['team2']}")
@@ -78,7 +122,7 @@ class Matches(ui.Select):
                                 inline=True)
                 embed.add_field(name="Info:", value=f"**Winner:** {match['team1']}"
                                                     f"\n**Round: ** {match['round_info']}"
-                                                    f"\n**Time:** {match['time_completed']}"
+                                                    f"\n**Time:** <t:{unix}> (<t:{unix}:R>)"
                                                     f"\n**Site:** https://vlr.gg{match['match_page']}",
                                 inline=False)
             else:
@@ -88,7 +132,7 @@ class Matches(ui.Select):
                                 inline=True)
                 embed.add_field(name='Info:', value=f"**Winner:** {match['team2']}"
                                                     f"\n**Round: ** {match['round_info']}"
-                                                    f"\n**Time:** {match['time_completed']}"
+                                                    f"\n**Time:** <t:{unix}> (<t:{unix}:R>)"
                                                     f"\n**Site:** https://vlr.gg{match['match_page']}"
                                                     f"\n", inline=False)
 
@@ -96,11 +140,14 @@ class Matches(ui.Select):
             await interaction.response.send_message(embed=embed)
 
         else:
-            embed = discord.Embed(colour=discord.Color.from_rgb(255, 87, 51), timestamp=interaction.created_at,
+            unix = convert_to_unix(match['time_until_match'])
+            print(unix)
+            embed = discord.Embed(colour=discord.Color.from_rgb(255, 87, 51),
+                                  timestamp=interaction.created_at,
                                   title=f"{match['team1']} vs {match['team2']}")
             embed.set_author(icon_url=match['tournament_icon'], name=match['tournament_name'])
             embed.add_field(name="Info:", value=f"\n**Round: ** {match['round_info']}"
-                                                f"\n**Time:** {match['time_until_match']}"
+                                                f"\n**Time:** <t:{unix}> (<t:{unix}:R>)"
                                                 f"\n**Site:** https://vlr.gg{match['match_page']}")
             await interaction.response.send_message(embed=embed)
 
@@ -136,7 +183,8 @@ class Tournaments(ui.Select):
         super().__init__(placeholder="Select Tournament", options=tournaments)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(view=MatchView(name=self.values[0], url_type=self.url_type))
+        await interaction.response.send_message(
+            view=MatchView(name=self.values[0], url_type=self.url_type))
 
 
 class TournamentView(ui.View):
@@ -187,5 +235,6 @@ async def upcoming(interaction: discord.Interaction):
 async def upcoming_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.CommandNotFound):
         await interaction.response.send_message("Data Fetch timed out")
+
 
 client.run(token)

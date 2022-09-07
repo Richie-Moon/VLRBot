@@ -1,9 +1,28 @@
 import datetime
 
-dt_now = datetime.datetime.now()
-string = ['3d 11h from now', '14h 19m ago']
+string = '3d 11h ago'
 
-a = datetime.datetime(100, 1, 1, 11, 34, 59)
-b = a + datetime.timedelta(0, 3)  # days, seconds, then other fields.
-print(a)
-print(b)
+time_now = datetime.datetime.now()
+string = string.split()
+
+string.pop(-1)
+print(string)
+
+for item in string:
+    if item[1] == 'w':
+        time_now -= datetime.timedelta(weeks=float(item[0]))
+    elif item[1] == 'd':
+        time_now -= datetime.timedelta(days=float(item[0]))
+    elif item[1] == 'h':
+        time_now -= datetime.timedelta(hours=float(item[0]))
+    elif item[1] == 'm':
+        time_now -= datetime.timedelta(minutes=float(item[0]))
+    elif item[1] == 's':
+        time_now -= datetime.timedelta(seconds=float(item[0]))
+
+print(time_now)
+
+
+unix = int(datetime.datetime.strptime(str(time_now.date()), '%Y-%m-%d').timestamp())
+
+print(unix)
