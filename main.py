@@ -5,10 +5,11 @@ import json
 from os import environ
 from dotenv import load_dotenv
 import datetime
-
+from zoneinfo import ZoneInfo
+dt_now = datetime.datetime.now(tz=ZoneInfo('Pacific/Auckland'))
 
 def convert_to_unix(time_data: str):
-    dt_now = datetime.datetime.now()
+    dt_now = datetime.datetime.now(tz=ZoneInfo('Pacific/Auckland'))
 
     if 'd' in time_data:
         contains_d = True
@@ -50,6 +51,7 @@ def convert_to_unix(time_data: str):
     if contains_d is True:
         return int(datetime.datetime.strptime(str(dt_now.date()), '%Y-%m-%d').timestamp())
     else:
+        print(int(datetime.datetime.timestamp(dt_now)))
         return int(datetime.datetime.timestamp(dt_now))
 
 
@@ -225,23 +227,19 @@ async def results(interaction: discord.Interaction):
     await interaction.response.send_message(view=TournamentView(url_type='results'))
 
 
-@results.error
-async def results_error(interaction: discord.Interaction, error):
-    if isinstance(error, app_commands.CommandNotFound):
-        print('that')
-        await interaction.response.send_message("Data Fetch timed out. ")
-
-
 @tree.command(guilds=guilds)
 async def upcoming(interaction: discord.Interaction):
     await interaction.response.send_message(view=TournamentView(url_type='upcoming'))
 
 
-@upcoming.error
-async def upcoming_error(interaction: discord.Interaction, error):
-    if isinstance(error, app_commands.CommandNotFound):
+@tree.error
+async def upcoming_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.CommandInvokeError) or \
+            isinstance(error, app_commands.CommandNotFound):
         print('This')
-        await interaction.response.send_message("Data Fetch timed out")
+        await interaction.followup.send("Data Fetch timed out")
+    else:
+        raise error
 
 
 client.run(token)
