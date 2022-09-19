@@ -1,28 +1,9 @@
-import datetime
+import requests
+import json
 
-string = '3d 11h ago'
+# print(requests.get('https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/ap/000b645d-1e8f-5e9e-8cbd-3cbebb34a00e').text)
 
-time_now = datetime.datetime.now()
-string = string.split()
-
-string.pop(-1)
-print(string)
-
-for item in string:
-    if item[1] == 'w':
-        time_now -= datetime.timedelta(weeks=float(item[0]))
-    elif item[1] == 'd':
-        time_now -= datetime.timedelta(days=float(item[0]))
-    elif item[1] == 'h':
-        time_now -= datetime.timedelta(hours=float(item[0]))
-    elif item[1] == 'm':
-        time_now -= datetime.timedelta(minutes=float(item[0]))
-    elif item[1] == 's':
-        time_now -= datetime.timedelta(seconds=float(item[0]))
-
-print(time_now)
+print(requests.get('https://api.henrikdev.xyz/valorant/v1/account/CSA/000').text)
 
 
-unix = int(datetime.datetime.strptime(str(time_now.date()), '%Y-%m-%d').timestamp())
-
-print(unix)
+# 000b645d-1e8f-5e9e-8cbd-3cbebb34a00e
