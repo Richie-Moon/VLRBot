@@ -6,6 +6,8 @@ from os import environ
 from dotenv import load_dotenv
 import datetime
 import zoneinfo
+
+
 # Put into requirements:
 # import tzdata
 
@@ -31,7 +33,7 @@ def convert_to_unix(time_data: str):
                 elif item[2] == 'h':
                     dt_now -= datetime.timedelta(hours=float(item[0:2]))
                 elif item[2] == 'm':
-                    dt_now -= datetime.timedelta(minutes=float(item[0:2])-1)
+                    dt_now -= datetime.timedelta(minutes=float(item[0:2]) - 1)
                 elif item[2] == 's':
                     dt_now -= datetime.timedelta(seconds=float(item[0:2]))
             elif len(item) == 2:
@@ -70,7 +72,7 @@ def convert_to_unix(time_data: str):
                 elif item[1] == 'h':
                     dt_now += datetime.timedelta(hours=float(item[0]))
                 elif item[1] == 'm':
-                    dt_now += datetime.timedelta(minutes=float(item[0])+1)
+                    dt_now += datetime.timedelta(minutes=float(item[0]) + 1)
                 elif item[1] == 's':
                     dt_now += datetime.timedelta(seconds=float(item[0]))
 
@@ -241,8 +243,7 @@ class Tournaments(ui.Select):
         super().__init__(placeholder="Select Tournament", options=tournaments)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(
-            view=MatchView(name=self.values[0], url_type=self.url_type))
+        await interaction.response.send_message(view=MatchView(name=self.values[0], url_type=self.url_type))
 
 
 class TournamentView(ui.View):
@@ -252,7 +253,7 @@ class TournamentView(ui.View):
 
 
 class MatchView(ui.View):
-    def __init__(self, name, *, timeout=None, url_type: str):
+    def __init__(self, name, *, timeout=15, url_type: str):
         super().__init__(timeout=timeout)
         self.add_item(Matches(name=name, url_type=url_type))
 
@@ -288,38 +289,95 @@ async def upcoming(interaction: discord.Interaction):
 @tree.command(guilds=guilds)
 async def account(interaction: discord.Interaction, name: str, tag: str):
     await interaction.response.defer()
-    data = json.loads(requests.get(f'https://api.henrikdev.xyz/valorant/v1/account/{name}/{tag}').text)['data']
+    all_data = json.loads(requests.get(f'https://api.henrikdev.xyz/valorant/v1/account/{name}/{tag}').text)
+    if all_data['status'] == 200:
+        data = all_data['data']
+        embed = discord.Embed(colour=discord.Color.from_rgb(148, 0, 211), timestamp=interaction.created_at,
+                              title=f"Profile for {data['name']}")
+        embed.set_author(name=f"{data['name']}#{data['tag']}", icon_url=data['card']['small'])
+        embed.set_image(url=data['card']['wide'])
+        embed.add_field(name="Level", value=data['account_level'])
 
-    embed = discord.Embed(colour=discord.Color.from_rgb(148, 0, 211), timestamp=interaction.created_at, title=f"Profile for {data['name']}")
-    embed.set_author(name=f"{data['name']}#{data['tag']}", icon_url=data['card']['small'])
-    embed.set_image(url=data['card']['wide'])
-    embed.add_field(name="Level", value=data['account_level'])
-
-    embed.set_footer(text='Last updated ' + data['last_update'])
-    await interaction.followup.send(embed=embed)
+        embed.set_footer(text='Last updated ' + data['last_update'])
+        await interaction.followup.send(embed=embed)
+    else:
+        await interaction.followup.send("Fetch failed. I will add more detail later but i cant be bothered rn. ")
 
 
 class UserMatches(ui.Select):
     def __init__(self, name, tag, gamemode):
-        if gamemode:
-            self.data = json.loads(requests.get(f'https://api.henrikdev.xyz/valorant/v3/matches/ap/{name}/{tag}?filter={gamemode}').text)['data']
-        else:
-            self.data = json.loads(requests.get(f'https://api.henrikdev.xyz/valorant/v3/matches/ap/{name}/{tag}').text)['data']
 
-        super().__init__(placeholder='Match', options=)
+        if gamemode:
+            self.data = json.loads(requests.get(f'https://api.henrikdev.xyz/valorant/v3/matches/ap/{name}/{tag}?filter={gamemode}').text)
+        else:
+            self.data = json.loads(requests.get(f'https://api.henrikdev.xyz/valorant/v3/matches/ap/{name}/{tag}').text)
+
+        if self.data['status'] == 200:
+            self.data = self.data['data']
+        else:
+            print(self.data['status'])
+
+        self.matches = []
+        self.raw_matches = []
+
+        for match in self.data:
+            match.pop('rounds')
+            match.pop('kills')
+            self.raw_matches.append(match)
+            for player in match['players']['all_players']:
+                if player['name'].lower() == name.lower():
+                    self.team = player['team'].lower()
+            self.matches.append(discord.SelectOption(label=f"{match['metadata']['map']} {match['teams'][self.team]['rounds_won']}-{match['teams'][self.team]['rounds_lost']}",
+                                                     value=match['metadata']['game_start']))
+
+        super().__init__(placeholder='Match', options=self.matches, min_values=1, max_values=1)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message()
+        await interaction.response.defer()
+        for match in self.raw_matches:
+            if match['metadata']['game_start'] == self.values[0]:
+                if match['teams'][self.team]['rounds_won'] > match['teams'][self.team]['rounds_lost']:
+                    colour = discord.Color.from_rgb(0, 0, 255)
+                elif match['teams'][self.team]['rounds_won'] < match['teams'][self.team]['rounds_lost']:
+                    colour = discord.Color.from_rgb(255, 0, 0)
+                else:
+                    colour = discord.Color.from_rgb(128, 128, 128)
+
+                embed = discord.Embed(colour=colour, timestamp=interaction.created_at, title=f"{match['metadata']['map']} "
+                                                                                             f"{match['teams'][self.team]['rounds_won']}-{match['teams'][self.team]['rounds_lost']}")
+
+                team_players = []
+                enemy_players = []
+                rounds_played = match['metadata']['rounds_played']
+                if self.team == 'red':
+                    for player in match['players']['red']:
+                        team_players.append({'name': player['name'], 'rank': player['currenttier_patched'], 'acs': player['stats']['score']//rounds_played, 'kills': player['stats']['kills'], 'deaths': player['stats']['deaths'],
+                                             'assists': player['stats']['assists'], 'adr': round(player['damage_made']/rounds_played, 2)})
+                else:
+                    for player in match['players']['blue']:
+                        enemy_players.append({'name': player['name'], 'rank': player['currenttier_patched'], 'acs': player['stats']['score']//rounds_played, 'kills': player['stats']['kills'], 'deaths': player['stats']['deaths'],
+                                             'assists': player['stats']['assists'], 'adr': round(player['damage_made']/rounds_played, 2)})
+
+                sorted_team_players = sorted(team_players, key=lambda sort: sort['acs'], reverse=True)
+                sorted_enemy_players = sorted(enemy_players, key=lambda sort: sort['acs'], reverse=True)
+
+                for player in sorted_team_players:
+                    embed.add_field(name=player['name'], value=f"ACS: {player['acs']}, Kills: {player['kills']}, Deaths: {player['deaths']}, Assists: {player['assists']}, ADR: {player['adr']}")
+
+                await interaction.followup.send(embed=embed)
+
 
 class UserMatchView(ui.View):
-    def __init__(self, name, tag, gamemode, *, timeout=None):
+    def __init__(self, name, tag, gamemode, *, timeout=15):
         super().__init__(timeout=timeout)
         self.add_item(UserMatches(name=name, tag=tag, gamemode=gamemode))
+
 
 @tree.command(guilds=guilds)
 async def history(interaction: discord.Interaction, name: str, tag: str, gamemode: str = None):
     await interaction.response.defer()
 
-    await interaction.followup.send(UserMatchView(name=name, tag=tag, gamemode=gamemode))
+    await interaction.followup.send(view=UserMatchView(name=name, tag=tag, gamemode=gamemode))
+
 
 client.run(token)
