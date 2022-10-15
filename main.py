@@ -1,4 +1,5 @@
 import discord
+import typing
 from discord import app_commands, ui
 import requests
 import json
@@ -270,7 +271,7 @@ async def ping(interaction: discord.Interaction):
 
 
 # @tree.command(guilds=guilds)
-# async def modal(interaction: discord.Interaction):
+# async def modal(interaction:
 #     await interaction.response.send_modal(Questionnaire())
 
 
@@ -307,64 +308,80 @@ async def account(interaction: discord.Interaction, name: str, tag: str):
 class UserMatches(ui.Select):
     def __init__(self, name, tag, gamemode):
 
-        if gamemode:
-            self.data = json.loads(requests.get(f'https://api.henrikdev.xyz/valorant/v3/matches/ap/{name}/{tag}?filter={gamemode}').text)
-        else:
-            self.data = json.loads(requests.get(f'https://api.henrikdev.xyz/valorant/v3/matches/ap/{name}/{tag}').text)
+        self.data = json.loads(requests.get(f'https://api.henrikdev.xyz/valorant/v3/matches/ap/{name}/{tag}?filter={gamemode}').text)
+
+        self.name = name
 
         if self.data['status'] == 200:
             self.data = self.data['data']
+            self.matches = []
+            self.raw_matches = []
+
+            for match in self.data:
+                match.pop('rounds')
+                match.pop('kills')
+                self.raw_matches.append(match)
+                for player in match['players']['all_players']:
+                    if player['name'].lower() == name.lower():
+                        self.team = player['team'].lower()
+
+                self.matches.append(discord.SelectOption(label=f"{match['metadata']['map']} {match['teams'][self.team]['rounds_won']}-{match['teams'][self.team]['rounds_lost']}",
+                                                         value=match['metadata']['game_start']))
+
+            super().__init__(placeholder='Match', options=self.matches, min_values=1, max_values=1)
         else:
             print(self.data['status'])
 
-        self.matches = []
-        self.raw_matches = []
-
-        for match in self.data:
-            match.pop('rounds')
-            match.pop('kills')
-            self.raw_matches.append(match)
-            for player in match['players']['all_players']:
-                if player['name'].lower() == name.lower():
-                    self.team = player['team'].lower()
-            self.matches.append(discord.SelectOption(label=f"{match['metadata']['map']} {match['teams'][self.team]['rounds_won']}-{match['teams'][self.team]['rounds_lost']}",
-                                                     value=match['metadata']['game_start']))
-
-        super().__init__(placeholder='Match', options=self.matches, min_values=1, max_values=1)
-
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
+        emojis = {}
         for match in self.raw_matches:
-            if match['metadata']['game_start'] == self.values[0]:
-                if match['teams'][self.team]['rounds_won'] > match['teams'][self.team]['rounds_lost']:
-                    colour = discord.Color.from_rgb(0, 0, 255)
-                elif match['teams'][self.team]['rounds_won'] < match['teams'][self.team]['rounds_lost']:
-                    colour = discord.Color.from_rgb(255, 0, 0)
-                else:
-                    colour = discord.Color.from_rgb(128, 128, 128)
+            if str(match['metadata']['game_start']) == self.values[0]:
+                for player in match['players']['all_players']:
+                    if player['name'].lower() == self.name.lower():
+                        team = player['team'].lower()
 
-                embed = discord.Embed(colour=colour, timestamp=interaction.created_at, title=f"{match['metadata']['map']} "
-                                                                                             f"{match['teams'][self.team]['rounds_won']}-{match['teams'][self.team]['rounds_lost']}")
+                win = match['teams'][team]['has_won']
+
+                if match['teams'][team]['rounds_won'] == match['teams'][team]['rounds_lost']:
+                    team_colour = discord.Color.from_rgb(128, 128, 128)
+                    enemy_colour = discord.Color.from_rgb(128, 128, 128)
+                elif win is True:
+                    team_colour = discord.Color.from_rgb(0, 255, 0)
+                    enemy_colour = discord.Color.from_rgb(255, 0, 0)
+                elif win is False:
+                    team_colour = discord.Color.from_rgb(255, 0, 0)
+                    enemy_colour = discord.Color.from_rgb(0, 255, 0)
+                else:
+                    team_colour = discord.Color.from_rgb(255, 255, 255)
+                    enemy_colour = discord.Color.from_rgb(255, 255, 255)
+
+                team_embed = discord.Embed(colour=team_colour, title=f"{match['metadata']['map']} {match['teams'][team]['rounds_won']}-{match['teams'][team]['rounds_lost']}")
+                enemy_embed = discord.Embed(colour=enemy_colour, timestamp=interaction.created_at)
 
                 team_players = []
                 enemy_players = []
                 rounds_played = match['metadata']['rounds_played']
-                if self.team == 'red':
-                    for player in match['players']['red']:
-                        team_players.append({'name': player['name'], 'rank': player['currenttier_patched'], 'acs': player['stats']['score']//rounds_played, 'kills': player['stats']['kills'], 'deaths': player['stats']['deaths'],
-                                             'assists': player['stats']['assists'], 'adr': round(player['damage_made']/rounds_played, 2)})
-                else:
-                    for player in match['players']['blue']:
-                        enemy_players.append({'name': player['name'], 'rank': player['currenttier_patched'], 'acs': player['stats']['score']//rounds_played, 'kills': player['stats']['kills'], 'deaths': player['stats']['deaths'],
-                                             'assists': player['stats']['assists'], 'adr': round(player['damage_made']/rounds_played, 2)})
+
+                for player in match['players']['all_players']:
+                    if player['team'].lower() == team:
+                        team_players.append({'name': player['name'], 'rank': player['currenttier_patched'].lower().replace(' ', ''), 'acs': player['stats']['score']//rounds_played, 'kills': player['stats']['kills'], 'deaths': player['stats']['deaths'],
+                                             'assists': player['stats']['assists'], 'adr': round(player['damage_made']/rounds_played, 2), 'agent': player['character'].lower()})
+                    else:
+                        enemy_players.append({'name': player['name'], 'rank': player['currenttier_patched'].lower().replace(' ', ''), 'acs': player['stats']['score']//rounds_played, 'kills': player['stats']['kills'], 'deaths': player['stats']['deaths'],
+                                             'assists': player['stats']['assists'], 'adr': round(player['damage_made']/rounds_played, 2), 'agent': player['character'].lower()})
 
                 sorted_team_players = sorted(team_players, key=lambda sort: sort['acs'], reverse=True)
                 sorted_enemy_players = sorted(enemy_players, key=lambda sort: sort['acs'], reverse=True)
 
                 for player in sorted_team_players:
-                    embed.add_field(name=player['name'], value=f"ACS: {player['acs']}, Kills: {player['kills']}, Deaths: {player['deaths']}, Assists: {player['assists']}, ADR: {player['adr']}")
+                    team_embed.add_field(name=f":{player['rank']}: {player['name']} :{player['agent']}:", value=f"ACS: {player['acs']}, Kills: {player['kills']}, Deaths: {player['deaths']}, Assists: {player['assists']}, ADR: {player['adr']}",
+                                         inline=False)
+                for player in sorted_enemy_players:
+                    enemy_embed.add_field(name=f":{player['rank']}: {player['name']} :{player['agent']}:", value=f"ACS: {player['acs']}, Kills: {player['kills']}, Deaths: {player['deaths']}, Assists: {player['assists']}, ADR: {player['adr']}",
+                                          inline=False)
 
-                await interaction.followup.send(embed=embed)
+                embeds = [team_embed, enemy_embed]
+                await interaction.response.send_message(embeds=embeds)
 
 
 class UserMatchView(ui.View):
@@ -374,10 +391,10 @@ class UserMatchView(ui.View):
 
 
 @tree.command(guilds=guilds)
-async def history(interaction: discord.Interaction, name: str, tag: str, gamemode: str = None):
+async def history(interaction: discord.Interaction, name: str, tag: str, gamemode: typing.Literal['Competitive', 'Unrated']):
     await interaction.response.defer()
 
-    await interaction.followup.send(view=UserMatchView(name=name, tag=tag, gamemode=gamemode))
+    await interaction.followup.send(view=UserMatchView(name=name, tag=tag, gamemode=gamemode.lower()))
 
 
 client.run(token)
